@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #0a0d14;
+    color: #e2e8f0;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0.03em;
+  }
+}
+
+/* Custom Gaming Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #9d9ace;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1f2b45;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00f2fe;
+}
+
+/* Glassmorphism & Neon utilities */
+.gaming-card {
+  background: linear-gradient(135deg, rgba(17, 23, 38, 0.9) 0%, rgba(13, 18, 30, 0.95) 100%);
+  border: 1px solid rgba(31, 43, 69, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 0.75rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.gaming-card:hover {
+  border-color: rgba(0, 242, 254, 0.4);
+  box-shadow: 0 0 20px -5px rgba(0, 242, 254, 0.15);
+}
+
+.gaming-card-orange:hover {
+  border-color: rgba(255, 119, 0, 0.5);
+  box-shadow: 0 0 20px -5px rgba(255, 119, 0, 0.2);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 10px rgba(0, 242, 254, 0.6), 0 0 20px rgba(0, 242, 254, 0.2);
+}
+
+.text-glow-orange {
+  text-shadow: 0 0 10px rgba(255, 119, 0, 0.6), 0 0 20px rgba(255, 119, 0, 0.2);
+}
+
+.border-glow-cyan {
+  border-color: #00f2fe;
+  box-shadow: 0 0 15px rgba(0, 242, 254, 0.35);
+}
+
+/* Diagonal gaming accent ribbon */
+.gaming-tag {
+  clip-path: polygon(10px 0%, 100% 0%, calc(100% - 10px) 100%, 0% 100%);
+}
