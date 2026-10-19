@@ -91,10 +91,28 @@ export const DataProvider = ({ children }) => {
     setNotifications(prev => [newNotif, ...prev]);
   };
 
-  // Wallet helpers
+  // Wallet helpers: check team wallet, or fall back to user's personal wallet
   const getTeamWallet = (teamId) => {
-    return wallets[teamId] !== undefined ? wallets[teamId] : 0;
+    if (teamId && wallets[teamId] !== undefined) return wallets[teamId];
+    if (currentUser?.id && wallets[currentUser.id] !== undefined) return wallets[currentUser.id];
+    return 0;
   };
+
+  // Ensure every user gets 200 welcome coins upon creating an account
+  useEffect(() => {
+    if (currentUser?.id && wallets[currentUser.id] === undefined) {
+      setWallets(prev => ({ ...prev, [currentUser.id]: 200 }));
+      setTransactions(prev => [{
+        id: 'tx-' + Date.now(),
+        team_id: currentUser.id,
+        amount: 200,
+        reason: 'Welcome bonus on creating account (+200 Coins)',
+        balance_after: 200,
+        created_by: 'system',
+        created_at: new Date().toISOString()
+      }, ...prev]);
+    }
+  }, [currentUser?.id]);
 
   // -------------------------------------------------------------
   // TOURNAMENT CRUD
@@ -251,20 +269,11 @@ export const DataProvider = ({ children }) => {
         is_substitute: Boolean(p.is_substitute)
       }));
 
-      // Initialize team wallet with default coins if setting is enabled
-      const defaultCoins = settings?.default_coins || 0;
-      setWallets(prev => ({ ...prev, [teamId]: defaultCoins }));
-      if (defaultCoins > 0) {
-        setTransactions(prev => [{
-          id: 'tx-' + Date.now(),
-          team_id: teamId,
-          amount: defaultCoins,
-          reason: 'Welcome bonus on team registration',
-          balance_after: defaultCoins,
-          created_by: 'system',
-          created_at: new Date().toISOString()
-        }, ...prev]);
-      }
+      // Transfer user's existing account coins to team wallet
+      const existingUserCoins = (currentUser?.id && wallets[currentUser.id] !== undefined)
+        ? wallets[currentUser.id]
+        : 200;
+      setWallets(prev => ({ ...prev, [teamId]: existingUserCoins, ...(currentUser?.id ? { [currentUser.id]: existingUserCoins } : {}) }));
 
       setTeams(prev => [newTeam, ...prev]);
       setPlayers(prev => [...prev, ...newPlayers]);
@@ -311,7 +320,9 @@ export const DataProvider = ({ children }) => {
 
       setTeams(prev => [generatedTeam, ...prev]);
       setPlayers(prev => [generatedPlayer, ...prev]);
-      setWallets(prev => ({ ...prev, [generatedTeamId]: 200 })); // Give 200 welcome bonus coins
+      // Link existing user coins (200 coin bonus was given on account creation, NOT tournament registration)
+      const existingCoins = (currentUser?.id && wallets[currentUser.id] !== undefined) ? wallets[currentUser.id] : 0;
+      setWallets(prev => ({ ...prev, [generatedTeamId]: existingCoins }));
       actualTeamId = generatedTeamId;
     }
 

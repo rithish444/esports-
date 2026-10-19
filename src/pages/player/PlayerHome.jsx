@@ -45,7 +45,7 @@ export const PlayerHome = () => {
   const [quickPhone, setQuickPhone] = useState('');
 
   const userTeam = currentUser ? getUserTeam(currentUser.id) : null;
-  const currentWalletBalance = userTeam ? getTeamWallet(userTeam.id) : 0;
+  const currentWalletBalance = userTeam ? getTeamWallet(userTeam.id) : (currentUser ? getTeamWallet(currentUser.id) : 0);
 
   // Filter tournaments
   const filteredTournaments = tournaments.filter(t => {

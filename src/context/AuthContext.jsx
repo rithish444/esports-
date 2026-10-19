@@ -327,7 +327,8 @@ export const AuthProvider = ({ children }) => {
         password,
         options: {
           data: {
-            name: String(name).trim()
+            name: String(name).trim(),
+            coins: 200
           }
         }
       });

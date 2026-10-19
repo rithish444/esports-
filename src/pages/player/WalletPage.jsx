@@ -18,7 +18,7 @@ export const WalletPage = () => {
   const { getUserTeam, getTeamWallet, transactions } = useData();
 
   const userTeam = currentUser ? getUserTeam(currentUser.id) : null;
-  const balance = userTeam ? getTeamWallet(userTeam.id) : 0;
+  const balance = userTeam ? getTeamWallet(userTeam.id) : (currentUser ? getTeamWallet(currentUser.id) : 0);
 
   // Filter transactions for this team
   const myTransactions = userTeam

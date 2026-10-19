@@ -37,7 +37,7 @@ export const Navbar = () => {
   }, []);
 
   const userTeam = currentUser ? getUserTeam(currentUser.id) : null;
-  const coinBalance = userTeam ? getTeamWallet(userTeam.id) : 0;
+  const coinBalance = userTeam ? getTeamWallet(userTeam.id) : (currentUser ? getTeamWallet(currentUser.id) : 0);
 
   // Filter notifications for current user (or admin)
   const myNotifications = notifications.filter(
