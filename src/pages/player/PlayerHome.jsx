@@ -47,12 +47,16 @@ export const PlayerHome = () => {
   const userTeam = currentUser ? getUserTeam(currentUser.id) : null;
   const currentWalletBalance = userTeam ? getTeamWallet(userTeam.id) : (currentUser ? getTeamWallet(currentUser.id) : 0);
 
-  // Filter tournaments
+  // Filter tournaments: Only display tournaments fixed and active in the admin dashboard.
+  // Never show tournaments cancelled or closed by admin when a player browses tournaments to join.
   const filteredTournaments = tournaments.filter(t => {
-    const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          t.map.toLowerCase().includes(searchQuery.toLowerCase());
+    if (t.status === 'Cancelled') return false;
+    if (filterStatus === 'All' && (t.status === 'Closed' || t.status === 'Completed')) return false;
+
+    const matchesSearch = (t.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (t.map || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesMode = filterMode === 'All' || t.mode === filterMode;
-    const matchesStatus = filterStatus === 'All' || t.status === filterStatus;
+    const matchesStatus = filterStatus === 'All' ? (t.status === 'Open' || t.status === 'Live') : t.status === filterStatus;
     return matchesSearch && matchesMode && matchesStatus;
   });
 

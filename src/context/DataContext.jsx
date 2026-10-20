@@ -15,6 +15,7 @@ import {
   DEFAULT_SETTINGS
 } from '../data/seedData';
 import { useAuth } from './AuthContext';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { 
   sanitizeInput, 
   validateFFUid, 
@@ -39,6 +40,57 @@ export const DataProvider = ({ children }) => {
   };
 
   const [tournaments, setTournaments] = useState(() => loadState('tournaments', INITIAL_TOURNAMENTS));
+
+  // Sync tournaments from Supabase so any phone/device sees the exact tournaments fixed by Admin
+  const fetchTournamentsFromSupabase = async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data, error } = await supabase
+        .from('tournaments')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && data && data.length > 0) {
+        setTournaments(data);
+        localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.warn('Error fetching tournaments from Supabase:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchTournamentsFromSupabase();
+
+    if (!isSupabaseConfigured()) return;
+
+    // Realtime listener: whenever admin creates, edits, or deletes a tournament,
+    // all connected devices (phones, tablets, PCs) update their tournament list instantly!
+    const channel = supabase
+      .channel('tournaments-live-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tournaments' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setTournaments(prev => {
+              if (prev.some(t => t.id === payload.new.id)) return prev;
+              return [payload.new, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setTournaments(prev => prev.map(t => t.id === payload.new.id ? payload.new : t));
+          } else if (payload.eventType === 'DELETE') {
+            setTournaments(prev => prev.filter(t => t.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const [teams, setTeams] = useState(() => loadState('teams', INITIAL_TEAMS));
   const [players, setPlayers] = useState(() => loadState('players', INITIAL_PLAYERS));
   const [wallets, setWallets] = useState(() => loadState('wallets', INITIAL_WALLETS));
@@ -115,11 +167,16 @@ export const DataProvider = ({ children }) => {
   }, [currentUser?.id]);
 
   // -------------------------------------------------------------
-  // TOURNAMENT CRUD
+  // TOURNAMENT CRUD (Synced with Supabase Cloud Database)
   // -------------------------------------------------------------
-  const createTournament = (data) => {
+  const createTournament = async (data) => {
+    // Generate valid UUID for Supabase
+    const tourneyId = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+      ? crypto.randomUUID() 
+      : '00000000-0000-4000-8000-' + Date.now().toString(16).padStart(12, '0');
+
     const newTourney = {
-      id: 'tourney-' + Date.now(),
+      id: tourneyId,
       title: data.title,
       game: data.game || 'Free Fire',
       mode: data.mode || 'Squad',
@@ -136,25 +193,62 @@ export const DataProvider = ({ children }) => {
 
     setTournaments(prev => [newTourney, ...prev]);
     logActivity('tournament_created', `Admin created tournament "${newTourney.title}"`);
+
+    // Sync to Supabase so it immediately appears on all users' phones
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('tournaments').insert([newTourney]);
+      } catch (err) {
+        console.warn('Error inserting tournament to Supabase:', err);
+      }
+    }
+
     return newTourney;
   };
 
-  const updateTournament = (id, data) => {
+  const updateTournament = async (id, data) => {
     setTournaments(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
     logActivity('tournament_updated', `Admin updated tournament "${data.title || id}"`);
+
+    // Sync update to Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('tournaments').update(data).eq('id', id);
+      } catch (err) {
+        console.warn('Error updating tournament in Supabase:', err);
+      }
+    }
   };
 
-  const deleteTournament = (id) => {
+  const deleteTournament = async (id) => {
     const tourney = tournaments.find(t => t.id === id);
     setTournaments(prev => prev.filter(t => t.id !== id));
     setRegistrations(prev => prev.filter(r => r.tournament_id !== id));
     setMatches(prev => prev.filter(m => m.tournament_id !== id));
-    logActivity('tournament_deleted', `Admin deleted tournament "${tourney?.title || id}"`);
+    logActivity('tournament_deleted', `Admin deleted/cancelled tournament "${tourney?.title || id}"`);
+
+    // Sync deletion to Supabase so it is removed from all devices and phones
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('tournaments').delete().eq('id', id);
+      } catch (err) {
+        console.warn('Error deleting tournament from Supabase:', err);
+      }
+    }
   };
 
-  const setTournamentStatus = (id, newStatus) => {
+  const setTournamentStatus = async (id, newStatus) => {
     setTournaments(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
     logActivity('tournament_status_changed', `Tournament status changed to ${newStatus}`);
+
+    // Sync status change to Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('tournaments').update({ status: newStatus }).eq('id', id);
+      } catch (err) {
+        console.warn('Error updating tournament status in Supabase:', err);
+      }
+    }
   };
 
   // -------------------------------------------------------------

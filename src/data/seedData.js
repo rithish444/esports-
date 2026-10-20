@@ -85,49 +85,34 @@ export const INITIAL_PLAYERS = [
 
 export const INITIAL_TOURNAMENTS = [
   {
-    id: 'tourney-01',
+    id: '205e4304-6022-44b4-8e91-829a62f97ba1',
     title: 'Free Fire Champions Cup S4',
     game: 'Free Fire',
     mode: 'Squad',
     map: 'Bermuda',
-    start_time: '2026-10-18T19:00:00Z',
+    start_time: '2026-10-25T19:00:00Z',
     entry_fee: 100,
     prize_pool: '5,000 Coins',
     max_teams: 12,
-    rules: '1. Emote spamming after knockout is allowed.\n2. Use of hacks, scripts or config edits results in immediate permanent ban.\n3. All players must be present in custom room 10 minutes prior to match time.\n4. Screen recording with in-game audio may be requested for anti-cheat verification.\n5. Points scoring: 1st=12pts, 2nd=9pts, 3rd=8pts, 4th=7pts, 5th=6pts + 1pt per Kill.',
+    rules: '1. Standard Free Fire competitive rules apply.\n2. Room ID and password displayed 15 minutes before match.',
     banner_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
     status: 'Open',
     created_at: '2026-10-10T10:00:00Z'
   },
   {
-    id: 'tourney-02',
+    id: '37793b84-0ff7-4db8-918b-3f16e961818c',
     title: 'Bermuda Clash Solo Showdown',
     game: 'Free Fire',
     mode: 'Solo',
     map: 'Purgatory',
-    start_time: '2026-10-13T21:00:00Z',
+    start_time: '2026-10-26T21:00:00Z',
     entry_fee: 50,
     prize_pool: '2,500 Coins',
     max_teams: 24,
-    rules: '1. Solo battle royale. Teaming up will result in immediate disqualification.\n2. Room ID and password will be displayed 15 minutes before match start.\n3. Default character skill sets allowed.',
+    rules: '1. Solo battle royale. Teaming up will result in immediate disqualification.',
     banner_url: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80',
-    status: 'Live',
+    status: 'Open',
     created_at: '2026-10-11T12:00:00Z'
-  },
-  {
-    id: 'tourney-03',
-    title: 'Free Fire Pro League Finale',
-    game: 'Free Fire MAX',
-    mode: 'Squad',
-    map: 'Kalahari',
-    start_time: '2026-10-08T18:00:00Z',
-    entry_fee: 150,
-    prize_pool: '10,000 Coins',
-    max_teams: 12,
-    rules: 'Official finals match. 3 rounds total points calculation.',
-    banner_url: 'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=1200&q=80',
-    status: 'Completed',
-    created_at: '2026-10-01T09:00:00Z'
   }
 ];
 
