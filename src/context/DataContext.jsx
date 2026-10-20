@@ -354,15 +354,23 @@ export const DataProvider = ({ children }) => {
       throw new Error('Tournament is completely full!');
     }
 
-    // Check coin balance smoothly
+    // Check coin balance: Players can ONLY register using coins.
     const currentBalance = getTeamWallet(actualTeamId);
-    const fee = tourney.entry_fee || 0;
-    const canPay = currentBalance >= fee;
-    const coinsDeducted = canPay ? fee : 0;
-    const newBalance = canPay ? currentBalance - fee : currentBalance;
+    const fee = Number(tourney.entry_fee) || 0;
 
-    if (canPay && fee > 0) {
-      setWallets(prev => ({ ...prev, [actualTeamId]: newBalance }));
+    // RULE 2: If they do not have enough coins, they CANNOT register for the tournament!
+    if (fee > 0 && currentBalance < fee) {
+      throw new Error(`Insufficient Coins! This tournament requires ${fee} Coins to register, but you currently have only ${currentBalance} Coins. You cannot register for the game without coins.`);
+    }
+
+    const newBalance = fee > 0 ? currentBalance - fee : currentBalance;
+
+    if (fee > 0) {
+      setWallets(prev => {
+        const next = { ...prev, [actualTeamId]: newBalance };
+        if (currentUser?.id) next[currentUser.id] = newBalance;
+        return next;
+      });
       setTransactions(prev => [{
         id: 'tx-' + Date.now(),
         team_id: actualTeamId,
@@ -380,8 +388,8 @@ export const DataProvider = ({ children }) => {
       tournament_id: tournamentId,
       team_id: actualTeamId,
       status: 'Pending',
-      payment_status: canPay ? 'Paid' : 'Free Entry',
-      coins_paid: coinsDeducted,
+      payment_status: fee > 0 ? 'Paid' : 'Free Entry',
+      coins_paid: fee,
       created_at: new Date().toISOString()
     };
     setRegistrations(prev => [newReg, ...prev]);

@@ -69,6 +69,13 @@ export const PlayerHome = () => {
     setJoinError(null);
     setJoinSuccess(null);
 
+    // Strict Coin Requirement: If they don't have enough coins, they cannot register
+    const tourneyFee = Number(joinModalTourney?.entry_fee) || 0;
+    if (tourneyFee > 0 && currentWalletBalance < tourneyFee) {
+      setJoinError(`Insufficient Coins! This tournament requires ${tourneyFee} Coins to register, but your wallet only has ${currentWalletBalance} Coins. You cannot register for the game without coins.`);
+      return;
+    }
+
     // If no team profile created yet, validate quick inputs
     if (!userTeam) {
       if (!quickTeamName.trim()) {
@@ -433,6 +440,18 @@ export const PlayerHome = () => {
                     <span className="text-slate-400">Entry Fee:</span>
                     <span className="font-bold text-amber-400">{joinModalTourney.entry_fee} Coins</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Your Coin Balance:</span>
+                    <span className={`font-bold ${currentWalletBalance >= (joinModalTourney.entry_fee || 0) ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {currentWalletBalance} Coins
+                    </span>
+                  </div>
+                  {currentWalletBalance < (joinModalTourney.entry_fee || 0) && (
+                    <div className="p-2.5 rounded-lg bg-rose-950/60 border border-rose-500/40 text-[11px] text-rose-300 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>You cannot register for this tournament without sufficient coins ({(joinModalTourney.entry_fee || 0) - currentWalletBalance} more needed).</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* If user does not have a team yet, show quick 1-step team inputs */}
@@ -515,10 +534,15 @@ export const PlayerHome = () => {
                   </button>
                   <button
                     type="button"
+                    disabled={currentWalletBalance < (joinModalTourney.entry_fee || 0)}
                     onClick={handleConfirmJoin}
-                    className="flex-1 py-2.5 rounded-lg bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-black text-xs font-bold uppercase transition shadow-neon-cyan"
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold uppercase transition ${
+                      currentWalletBalance < (joinModalTourney.entry_fee || 0)
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/60'
+                        : 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-black shadow-neon-cyan'
+                    }`}
                   >
-                    Submit for Approval
+                    {currentWalletBalance < (joinModalTourney.entry_fee || 0) ? 'Insufficient Coins to Register' : 'Submit for Approval'}
                   </button>
                 </div>
               </>
