@@ -25,7 +25,7 @@ import {
 
 const DataContext = createContext();
 
-const LOCAL_STORAGE_PREFIX = 'esports_arena_';
+const LOCAL_STORAGE_PREFIX = 'esports_v2_';
 
 // Cross-tab broadcast channel for instantaneous zero-latency updates between tabs/windows
 const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
