@@ -85,34 +85,19 @@ export const INITIAL_PLAYERS = [
 
 export const INITIAL_TOURNAMENTS = [
   {
-    id: '205e4304-6022-44b4-8e91-829a62f97ba1',
-    title: 'Free Fire Champions Cup S4',
-    game: 'Free Fire',
-    mode: 'Squad',
-    map: 'Bermuda',
-    start_time: '2026-10-25T19:00:00Z',
-    entry_fee: 100,
-    prize_pool: '5,000 Coins',
-    max_teams: 12,
-    rules: '1. Standard Free Fire competitive rules apply.\n2. Room ID and password displayed 15 minutes before match.',
-    banner_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
-    status: 'Open',
-    created_at: '2026-10-10T10:00:00Z'
-  },
-  {
-    id: '37793b84-0ff7-4db8-918b-3f16e961818c',
-    title: 'Bermuda Clash Solo Showdown',
+    id: 'e5p0rts-0001-4000-8000-000000000001',
+    title: 'esports',
     game: 'Free Fire',
     mode: 'Solo',
-    map: 'Purgatory',
-    start_time: '2026-10-26T21:00:00Z',
+    map: 'Bermuda',
+    start_time: '2026-11-02T18:00:00Z',
     entry_fee: 50,
-    prize_pool: '2,500 Coins',
-    max_teams: 24,
-    rules: '1. Solo battle royale. Teaming up will result in immediate disqualification.',
-    banner_url: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80',
+    prize_pool: '600',
+    max_teams: 30,
+    rules: '1. Standard Free Fire competitive solo rules apply.\n2. Room ID and password displayed 15 minutes before match.\n3. Teaming up will result in immediate disqualification.',
+    banner_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
     status: 'Open',
-    created_at: '2026-10-11T12:00:00Z'
+    created_at: '2026-10-31T09:00:00Z'
   }
 ];
 

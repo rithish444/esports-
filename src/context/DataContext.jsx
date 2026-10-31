@@ -374,6 +374,21 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const syncTournamentsToCloud = async () => {
+    if (!isSupabaseConfigured()) {
+      return { success: false, error: 'Supabase URL or Key is missing in .env' };
+    }
+    try {
+      const { error } = await supabase.from('tournaments').upsert(tournaments);
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
   // -------------------------------------------------------------
   // TEAM MANAGEMENT & PLAYER ROSTER
   // -------------------------------------------------------------
@@ -1084,6 +1099,7 @@ export const DataProvider = ({ children }) => {
         // Methods
         createTournament,
         updateTournament,
+        syncTournamentsToCloud,
         deleteTournament,
         setTournamentStatus,
         getUserTeam,

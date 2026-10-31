@@ -10,7 +10,9 @@ import {
   MapPin, 
   Image, 
   Check, 
-  AlertTriangle 
+  AlertTriangle,
+  Cloud,
+  RefreshCw
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { StatusBadge, ModeBadge } from '../../components/common/Badge';
@@ -23,6 +25,7 @@ export const TournamentManager = () => {
     updateTournament, 
     deleteTournament, 
     setTournamentStatus,
+    syncTournamentsToCloud,
     settings 
   } = useData();
 
@@ -30,6 +33,21 @@ export const TournamentManager = () => {
   const [editingTourney, setEditingTourney] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [syncFeedback, setSyncFeedback] = useState(null);
+
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [cloudError, setCloudError] = useState(null);
+
+  const handleSyncCloud = async () => {
+    setIsCloudSyncing(true);
+    setCloudError(null);
+    const res = await syncTournamentsToCloud();
+    setIsCloudSyncing(false);
+    if (!res.success) {
+      setCloudError(res.error);
+    } else {
+      triggerFeedback('All tournaments synced to Cloud Database! Live on all user phones.');
+    }
+  };
 
   const triggerFeedback = (msg) => {
     setSyncFeedback(msg);
