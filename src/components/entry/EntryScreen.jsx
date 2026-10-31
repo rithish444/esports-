@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { 
   Trophy, 
   ShieldCheck, 
@@ -11,7 +11,8 @@ import {
   KeyRound,
   Mail,
   User,
-  ArrowRight
+  ArrowRight,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../common/Modal';
@@ -19,42 +20,34 @@ import { Modal } from '../common/Modal';
 export const EntryScreen = () => {
   const { login, signUp, loading, authError, isConfigured } = useAuth();
 
-  const [selectedRoleGate, setSelectedRoleGate] = useState(null); // 'admin' | 'player' | null
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'signup'
+  // Auth mode for player portal: 'login' | 'signup'
+  const [authMode, setAuthMode] = useState('login');
+  
+  // Admin login modal state (strictly LOGIN only, NO admin register)
+  const [showAdminModal, setShowAdminModal] = useState(false);
   const [showSetupGuide, setShowSetupGuide] = useState(false);
   
-  // Form fields
+  // Player form fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  const handleOpenGate = (gate) => {
-    setSelectedRoleGate(gate);
-    setAuthMode('login');
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setEmail('');
-    setPassword('');
-    setName('');
-  };
+  // Admin form fields
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminError, setAdminError] = useState(null);
 
-  const handleClose = () => {
-    setSelectedRoleGate(null);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setShowSetupGuide(false);
-  };
-
-  const handleSubmit = async (e) => {
+  // Handle Player Login & Registration
+  const handlePlayerSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
     if (authMode === 'signup') {
       if (!name.trim()) {
-        setErrorMessage('Please enter your full name.');
+        setErrorMessage('Please enter your full name or gamer tag.');
         return;
       }
       const res = await signUp(name, email, password);
@@ -62,30 +55,48 @@ export const EntryScreen = () => {
         setErrorMessage(res.error);
       } else if (res.message) {
         setSuccessMessage(res.message);
-      } else {
-        handleClose();
       }
     } else {
-      // Login using strictly Supabase Auth
-      const res = await login(email, password, selectedRoleGate);
+      // Login - works for players, and also auto-redirects admin if admin credentials entered
+      const res = await login(email, password);
       if (!res.success) {
         setErrorMessage(res.error);
-      } else {
-        handleClose();
       }
     }
+  };
+
+  // Handle Admin Login (Strictly Login Only - No Admin Registration)
+  const handleAdminSubmit = async (e) => {
+    e.preventDefault();
+    setAdminError(null);
+
+    const res = await login(adminEmail, adminPassword, 'admin');
+    if (!res.success) {
+      setAdminError(res.error);
+    } else {
+      setShowAdminModal(false);
+      setAdminEmail('');
+      setAdminPassword('');
+    }
+  };
+
+  const handleCloseAdminModal = () => {
+    setShowAdminModal(false);
+    setAdminError(null);
+    setAdminEmail('');
+    setAdminPassword('');
   };
 
   return (
     <div className="min-h-screen bg-[#0a0d14] text-slate-100 flex flex-col justify-between relative overflow-hidden select-none">
       
       {/* Background Decorative Neon Grids & Glow */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(#1f2b45_1px,transparent_1px)] [background-size:24px_24px] opacity-20 pointer-events-none" />
+      <div className="absolute top-0 left-1/3 w-96 h-96 bg-cyan-500/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[140px] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(#1f2b45_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none" />
 
       {/* Header Bar */}
-      <header className="relative z-10 w-full px-6 py-6 max-w-7xl mx-auto flex items-center justify-between">
+      <header className="relative z-10 w-full px-6 py-5 max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center shadow-neon-cyan">
             <Trophy className="w-5 h-5 text-black" />
@@ -114,99 +125,64 @@ export const EntryScreen = () => {
         </div>
       </header>
 
-      {/* Main Content: Role Selection */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-8 max-w-5xl mx-auto text-center">
+      {/* Main Content: Direct User Login Page */}
+      <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 py-6 max-w-lg w-full mx-auto">
         
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-400 text-xs font-semibold mb-6">
-          <Sparkles className="w-3.5 h-3.5" />
-          Select Your Access Portal
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-black tracking-wide text-white uppercase font-gaming mb-4">
-          Enter The <span className="text-cyan-400 text-glow-cyan">Battleground</span>
-        </h1>
-        
-        <p className="text-slate-400 max-w-2xl text-sm sm:text-base mb-10 leading-relaxed">
-          Welcome to Esports Arena, the competitive tournament platform for Free Fire. 
-          Choose your role below to manage tournaments or compete with your squad for cash coins.
-        </p>
-
-        {/* The Two Entry Portals */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-3xl">
+        {/* Main Card Container */}
+        <div className="w-full bg-[#0f1422]/90 backdrop-blur-xl border border-[#1f2b45] hover:border-cyan-500/40 rounded-2xl p-6 sm:p-8 shadow-2xl transition-all duration-300 relative">
           
-          {/* Card 1: Enter as Admin */}
-          <div 
-            onClick={() => handleOpenGate('admin')}
-            className="group relative cursor-pointer text-left p-8 rounded-2xl bg-gradient-to-b from-[#161c2d] to-[#0f1422] border-2 border-[#1f2b45] hover:border-orange-500/80 transition-all duration-300 hover:shadow-neon-orange hover:-translate-y-1"
-          >
-            <div className="absolute top-4 right-4 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-500/20 text-orange-400 border border-orange-500/30">
-              Restricted
+          {/* Card Top Glow Accent */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent rounded-full" />
+
+          {/* Card Header */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-cyan-950/70 border border-cyan-500/30 text-cyan-400 text-xs font-semibold mb-3 shadow-inner">
+              <Gamepad2 className="w-4 h-4" />
+              <span>Player Access Portal</span>
             </div>
 
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center mb-6 shadow-neon-orange group-hover:scale-110 transition-transform">
-              <ShieldCheck className="w-7 h-7 text-white" />
-            </div>
-
-            <h2 className="text-2xl font-bold text-white font-gaming mb-2 group-hover:text-orange-400 transition-colors">
-              Enter As Admin
-            </h2>
-
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mb-6">
-              Create and manage tournaments, verify team UIDs, approve entries, dispense coin rewards, and run live matches.
+            <h1 className="text-2xl sm:text-3xl font-black text-white uppercase font-gaming tracking-wide">
+              {authMode === 'login' ? 'Welcome Back, Champion' : 'Join The Arena'}
+            </h1>
+            <p className="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto">
+              {authMode === 'login'
+                ? 'Sign in to access your squad, custom room credentials, and coin wallet.'
+                : 'Create your player account to join Solo, Duo, and Squad tournaments.'
+              }
             </p>
-
-            <div className="flex items-center text-xs font-bold text-orange-400 group-hover:translate-x-1 transition-transform">
-              Admin Login Portal <ArrowRight className="w-4 h-4 ml-1.5" />
-            </div>
           </div>
 
-          {/* Card 2: Enter as Player */}
-          <div 
-            onClick={() => handleOpenGate('player')}
-            className="group relative cursor-pointer text-left p-8 rounded-2xl bg-gradient-to-b from-[#161c2d] to-[#0f1422] border-2 border-[#1f2b45] hover:border-cyan-400/80 transition-all duration-300 hover:shadow-neon-cyan hover:-translate-y-1"
-          >
-            <div className="absolute top-4 right-4 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
-              Open to All
-            </div>
-
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center mb-6 shadow-neon-cyan group-hover:scale-110 transition-transform">
-              <Gamepad2 className="w-7 h-7 text-black" />
-            </div>
-
-            <h2 className="text-2xl font-bold text-white font-gaming mb-2 group-hover:text-cyan-400 transition-colors">
-              Enter As Player
-            </h2>
-
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed mb-6">
-              Register your Free Fire squad, join Solo/Duo/Squad tournaments using coins, receive custom room passwords, and climb the leaderboard.
-            </p>
-
-            <div className="flex items-center text-xs font-bold text-cyan-400 group-hover:translate-x-1 transition-transform">
-              Player Login & Register <ArrowRight className="w-4 h-4 ml-1.5" />
-            </div>
+          {/* Mode Switcher: Log In vs Create Account (Player Only) */}
+          <div className="flex border-b border-[#1f2b45] mb-5">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('login'); setErrorMessage(null); setSuccessMessage(null); }}
+              className={`flex-1 pb-2.5 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5 ${
+                authMode === 'login'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              Log In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('signup'); setErrorMessage(null); setSuccessMessage(null); }}
+              className={`flex-1 pb-2.5 text-xs font-bold uppercase transition flex items-center justify-center gap-1.5 ${
+                authMode === 'signup'
+                  ? 'text-cyan-400 border-b-2 border-cyan-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Create Account
+            </button>
           </div>
 
-        </div>
-
-      </main>
-
-      {/* Footer */}
-      <footer className="relative z-10 w-full py-4 text-center text-xs text-slate-500 border-t border-[#1f2b45]/40">
-        Esports Arena • Designed for Free Fire Tournament Organizers & Players • Powered by React & Supabase
-      </footer>
-
-      {/* AUTH MODAL */}
-      <Modal
-        isOpen={Boolean(selectedRoleGate)}
-        onClose={handleClose}
-        title={selectedRoleGate === 'admin' ? 'Administrator Authentication' : 'Player Authentication'}
-        maxWidth="max-w-md"
-      >
-        <div className="space-y-4">
-          
           {/* Supabase Not Connected Warning */}
           {!isConfigured && (
-            <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 space-y-2">
+            <div className="p-3.5 mb-4 rounded-xl bg-amber-950/40 border border-amber-500/40 text-xs text-amber-200 space-y-2">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
                 <div className="flex-1">
@@ -221,7 +197,7 @@ export const EntryScreen = () => {
                 onClick={() => setShowSetupGuide(!showSetupGuide)}
                 className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline block"
               >
-                {showSetupGuide ? '▲ Hide setup steps' : '▼ View 3-step setup guide'}
+                {showSetupGuide ? '▾ Hide setup steps' : '▸ View 3-step setup guide'}
               </button>
               {showSetupGuide && (
                 <div className="pt-2 border-t border-amber-500/20 text-[11px] text-slate-300 space-y-1.5 leading-normal">
@@ -233,49 +209,9 @@ export const EntryScreen = () => {
             </div>
           )}
 
-          {/* Security Banner */}
-          {selectedRoleGate === 'admin' && (
-            <div className="p-3 rounded-lg bg-orange-950/40 border border-orange-500/30 text-xs text-orange-300 flex items-start gap-2">
-              <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-orange-400" />
-              <span>
-                <strong>Admin Security:</strong> Access is validated against the database <code className="text-white">profiles</code> table.
-              </span>
-            </div>
-          )}
-
-          {/* Mode Switcher: Log In vs Create / Register */}
-          <div className="flex border-b border-[#1f2b45] mb-2">
-            <button
-              type="button"
-              onClick={() => { setAuthMode('login'); setErrorMessage(null); }}
-              className={`flex-1 pb-2 text-xs font-bold uppercase transition ${
-                authMode === 'login'
-                  ? selectedRoleGate === 'admin'
-                    ? 'text-orange-400 border-b-2 border-orange-400'
-                    : 'text-cyan-400 border-b-2 border-cyan-400'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              Log In
-            </button>
-            <button
-              type="button"
-              onClick={() => { setAuthMode('signup'); setErrorMessage(null); }}
-              className={`flex-1 pb-2 text-xs font-bold uppercase transition ${
-                authMode === 'signup'
-                  ? selectedRoleGate === 'admin'
-                    ? 'text-orange-400 border-b-2 border-orange-400'
-                    : 'text-cyan-400 border-b-2 border-cyan-400'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {selectedRoleGate === 'admin' ? 'Register Admin' : 'Create Account'}
-            </button>
-          </div>
-
           {/* Success Message Alert */}
           {successMessage && (
-            <div className="p-3 rounded-lg bg-emerald-950/50 border border-emerald-500/40 text-xs text-emerald-300 flex items-start gap-2 animate-in fade-in">
+            <div className="p-3 mb-4 rounded-lg bg-emerald-950/50 border border-emerald-500/40 text-xs text-emerald-300 flex items-start gap-2 animate-in fade-in">
               <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
               <span>{successMessage}</span>
             </div>
@@ -283,57 +219,58 @@ export const EntryScreen = () => {
 
           {/* Error Message Alert */}
           {(errorMessage || authError) && (
-            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-500/40 text-xs text-rose-300 flex items-start gap-2 animate-shake">
+            <div className="p-3 mb-4 rounded-lg bg-rose-950/50 border border-rose-500/40 text-xs text-rose-300 flex items-start gap-2 animate-shake">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
               <span>{errorMessage || authError}</span>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-3">
+          {/* Form */}
+          <form onSubmit={handlePlayerSubmit} autoComplete="off" className="space-y-4">
             {authMode === 'signup' && (
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  {selectedRoleGate === 'admin' ? 'Administrator Name' : 'Full Name / Captain Name'}
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Full Name / Captain Name
                 </label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                  <User className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={selectedRoleGate === 'admin' ? 'e.g. Rithish (Admin)' : 'Enter your full name'}
+                    placeholder="Enter your full name or gamer tag"
                     autoComplete="off"
-                    className="w-full pl-9 pr-3 py-2 bg-[#0d121e] border border-[#1f2b45] rounded-lg text-sm text-white focus:outline-none focus:border-cyan-400"
+                    className="w-full pl-9 pr-3 py-2.5 bg-[#0a0d14] border border-[#1f2b45] rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                <Mail className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email address"
+                  placeholder="name@example.com"
                   autoComplete="off"
-                  className="w-full pl-9 pr-3 py-2 bg-[#0d121e] border border-[#1f2b45] rounded-lg text-sm text-white focus:outline-none focus:border-cyan-400"
+                  className="w-full pl-9 pr-3 py-2.5 bg-[#0a0d14] border border-[#1f2b45] rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Password
               </label>
               <div className="relative">
-                <KeyRound className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                <KeyRound className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
                 <input
                   type="password"
                   required
@@ -341,7 +278,7 @@ export const EntryScreen = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   autoComplete="new-password"
-                  className="w-full pl-9 pr-3 py-2 bg-[#0d121e] border border-[#1f2b45] rounded-lg text-sm text-white focus:outline-none focus:border-cyan-400"
+                  className="w-full pl-9 pr-3 py-2.5 bg-[#0a0d14] border border-[#1f2b45] rounded-xl text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition"
                 />
               </div>
             </div>
@@ -349,22 +286,158 @@ export const EntryScreen = () => {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-2.5 rounded-lg text-sm font-bold tracking-wide uppercase transition shadow-lg ${
-                selectedRoleGate === 'admin'
-                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-neon-orange'
-                  : 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-black shadow-neon-cyan'
-              }`}
+              className="w-full py-3 rounded-xl text-sm font-bold tracking-wide uppercase transition shadow-lg bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-black shadow-neon-cyan flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
             >
-              {loading 
-                ? 'Validating Credentials...' 
-                : authMode === 'signup' 
-                  ? (selectedRoleGate === 'admin' ? 'Register Admin Account' : 'Create Player Account')
-                  : selectedRoleGate === 'admin' 
-                    ? 'Login as Administrator' 
-                    : 'Login as Player'
-              }
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  <span>Validating Credentials...</span>
+                </>
+              ) : authMode === 'signup' ? (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  <span>Create Player Account</span>
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4" />
+                  <span>Log In to Battleground</span>
+                </>
+              )}
             </button>
           </form>
+
+          {/* Quick Features List */}
+          <div className="mt-6 pt-5 border-t border-[#1f2b45]/60 grid grid-cols-3 gap-2 text-center text-[10px] text-slate-400">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-cyan-400 font-bold">Free Fire</span>
+              <span>Daily Tourneys</span>
+            </div>
+            <div className="flex flex-col items-center gap-1 border-x border-[#1f2b45]/60">
+              <span className="text-amber-400 font-bold">200 Coins</span>
+              <span>Welcome Bonus</span>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-emerald-400 font-bold">Instant</span>
+              <span>Room Passwords</span>
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+
+      {/* Footer with Discreet Admin Login Portal (Strictly Login Only - No Register) */}
+      <footer className="relative z-10 w-full py-4 px-6 text-xs text-slate-500 border-t border-[#1f2b45]/40 flex flex-col sm:flex-row items-center justify-between gap-3 max-w-7xl mx-auto">
+        <div>
+          Esports Arena • Designed for Free Fire Tournament Organizers & Players
+        </div>
+        
+        {/* Subtle Admin Login Entry - Strictly Login Only */}
+        <button
+          type="button"
+          onClick={() => setShowAdminModal(true)}
+          className="inline-flex items-center gap-1.5 text-slate-500 hover:text-orange-400 transition text-[11px] font-medium group"
+        >
+          <Lock className="w-3.5 h-3.5 group-hover:text-orange-400" />
+          <span>Admin Portal</span>
+        </button>
+      </footer>
+
+      {/* ADMIN AUTHENTICATION MODAL (STRICTLY LOGIN ONLY - NO REGISTER COLUMN) */}
+      <Modal
+        isOpen={showAdminModal}
+        onClose={handleCloseAdminModal}
+        title="Administrator Authentication"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          
+          {/* Security Banner */}
+          <div className="p-3 rounded-lg bg-orange-950/40 border border-orange-500/30 text-xs text-orange-300 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-orange-400" />
+            <div>
+              <strong>Restricted Access:</strong> Authorized tournament organizers only. Access is strictly validated against database administrator permissions.
+            </div>
+          </div>
+
+          {/* Admin Error Alert */}
+          {adminError && (
+            <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-500/40 text-xs text-rose-300 flex items-start gap-2 animate-shake">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+              <span>{adminError}</span>
+            </div>
+          )}
+
+          {/* Admin Login Form - ONLY LOGIN IS PRESENT */}
+          <form onSubmit={handleAdminSubmit} autoComplete="off" className="space-y-3.5 pt-1">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Admin Email Address
+              </label>
+              <div className="relative">
+                <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                <input
+                  type="email"
+                  required
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="admin@esportsarena.com"
+                  autoComplete="off"
+                  className="w-full pl-9 pr-3 py-2 bg-[#0d121e] border border-[#1f2b45] rounded-lg text-sm text-white focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Master Security Password
+              </label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+                <input
+                  type="password"
+                  required
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter administrator password"
+                  autoComplete="current-password"
+                  className="w-full pl-9 pr-3 py-2 bg-[#0d121e] border border-[#1f2b45] rounded-lg text-sm text-white focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 rounded-lg text-sm font-bold tracking-wide uppercase transition shadow-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-neon-orange flex items-center justify-center gap-2 mt-2"
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Verifying Credentials...</span>
+                </>
+              ) : (
+                <>
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Login as Administrator</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="text-center pt-2">
+            <span className="text-[11px] text-slate-500">
+              Not an administrator?{' '}
+              <button
+                type="button"
+                onClick={handleCloseAdminModal}
+                className="text-cyan-400 hover:underline"
+              >
+                Return to Player Login
+              </button>
+            </span>
+          </div>
 
         </div>
       </Modal>
@@ -372,3 +445,4 @@ export const EntryScreen = () => {
     </div>
   );
 };
+export default EntryScreen;
