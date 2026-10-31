@@ -27,6 +27,11 @@ const DataContext = createContext();
 
 const LOCAL_STORAGE_PREFIX = 'esports_arena_';
 
+// Cross-tab broadcast channel for instantaneous zero-latency updates between tabs/windows
+const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
+  ? new BroadcastChannel('esports_arena_realtime_sync')
+  : null;
+
 export const DataProvider = ({ children }) => {
   const { currentUser, isAdmin } = useAuth();
 
@@ -42,7 +47,7 @@ export const DataProvider = ({ children }) => {
   const [tournaments, setTournaments] = useState(() => loadState('tournaments', INITIAL_TOURNAMENTS));
 
   // Sync tournaments from Supabase so any phone/device sees the exact tournaments fixed by Admin
-  const fetchTournamentsFromSupabase = async () => {
+  const fetchTournamentsFromSupabase = async (isBackground = false) => {
     if (!isSupabaseConfigured()) return;
     try {
       const { data, error } = await supabase
@@ -50,24 +55,78 @@ export const DataProvider = ({ children }) => {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && data && data.length > 0) {
-        setTournaments(data);
-        localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(data));
+      if (!error && Array.isArray(data)) {
+        if (data.length > 0) {
+          setTournaments(prev => {
+            const prevStr = JSON.stringify(prev);
+            const nextStr = JSON.stringify(data);
+            if (prevStr === nextStr) return prev;
+            localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', nextStr);
+            return data;
+          });
+        } else if (isAdmin && !isBackground) {
+          // If Supabase table is empty, auto-seed with current tournaments so cloud database is populated!
+          const currentLocal = loadState('tournaments', INITIAL_TOURNAMENTS);
+          if (Array.isArray(currentLocal) && currentLocal.length > 0) {
+            try {
+              await supabase.from('tournaments').upsert(currentLocal);
+            } catch (seedErr) {
+              console.warn('Initial seed error:', seedErr);
+            }
+          }
+        }
       }
     } catch (err) {
-      console.warn('Error fetching tournaments from Supabase:', err);
+      if (!isBackground) console.warn('Error fetching tournaments from Supabase:', err);
     }
   };
 
   useEffect(() => {
+    // 1. Initial fetch
     fetchTournamentsFromSupabase();
 
-    if (!isSupabaseConfigured()) return;
+    // 2. Storage event listener (other tabs in same browser)
+    const handleStorage = (e) => {
+      if (e.key === LOCAL_STORAGE_PREFIX + 'tournaments' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setTournaments(parsed);
+          }
+        } catch (err) {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
 
-    // Realtime listener: whenever admin creates, edits, or deletes a tournament,
-    // all connected devices (phones, tablets, PCs) update their tournament list instantly!
+    // 3. BroadcastChannel listener (instant 0ms cross-tab sync)
+    if (syncChannel) {
+      syncChannel.onmessage = (event) => {
+        if (event.data?.type === 'SYNC_TOURNAMENTS' && Array.isArray(event.data.data)) {
+          setTournaments(event.data.data);
+        }
+      };
+    }
+
+    // 4. Focus & visibility change listener (when user unlocks phone or switches back to tab)
+    const handleFocus = () => fetchTournamentsFromSupabase(true);
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleFocus();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    if (!isSupabaseConfigured()) {
+      return () => {
+        window.removeEventListener('storage', handleStorage);
+        window.removeEventListener('focus', handleFocus);
+        document.removeEventListener('visibilitychange', handleVisibility);
+      };
+    }
+
+    // 5. Supabase Realtime WebSocket listener
+    const channelName = 'tournaments-live-sync-' + Math.random().toString(36).slice(2, 8);
     const channel = supabase
-      .channel('tournaments-live-sync')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tournaments' },
@@ -75,21 +134,43 @@ export const DataProvider = ({ children }) => {
           if (payload.eventType === 'INSERT') {
             setTournaments(prev => {
               if (prev.some(t => t.id === payload.new.id)) return prev;
-              return [payload.new, ...prev];
+              const next = [payload.new, ...prev];
+              localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+              syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+              return next;
             });
           } else if (payload.eventType === 'UPDATE') {
-            setTournaments(prev => prev.map(t => t.id === payload.new.id ? payload.new : t));
+            setTournaments(prev => {
+              const next = prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t);
+              localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+              syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+              return next;
+            });
           } else if (payload.eventType === 'DELETE') {
-            setTournaments(prev => prev.filter(t => t.id !== payload.old.id));
+            setTournaments(prev => {
+              const next = prev.filter(t => t.id !== payload.old.id);
+              localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+              syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+              return next;
+            });
           }
         }
       )
       .subscribe();
 
+    // 6. Fast live polling every 2.5 seconds - guarantees rapid real-time sync across all live devices
+    const pollInterval = setInterval(() => {
+      fetchTournamentsFromSupabase(true);
+    }, 2500);
+
     return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [isAdmin]);
 
   const [teams, setTeams] = useState(() => loadState('teams', INITIAL_TEAMS));
   const [players, setPlayers] = useState(() => loadState('players', INITIAL_PLAYERS));
@@ -187,19 +268,26 @@ export const DataProvider = ({ children }) => {
       max_teams: Number(data.max_teams) || 12,
       rules: data.rules || '',
       banner_url: data.banner_url || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
-      status: 'Open',
-      created_at: new Date().toISOString()
+      status: data.status || 'Open',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
 
-    setTournaments(prev => [newTourney, ...prev]);
+    setTournaments(prev => {
+      const next = [newTourney, ...prev.filter(t => t.id !== tourneyId)];
+      localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+      syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+      return next;
+    });
+
     logActivity('tournament_created', `Admin created tournament "${newTourney.title}"`);
 
     // Sync to Supabase so it immediately appears on all users' phones
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('tournaments').insert([newTourney]);
+        await supabase.from('tournaments').upsert(newTourney);
       } catch (err) {
-        console.warn('Error inserting tournament to Supabase:', err);
+        console.warn('Error upserting tournament to Supabase:', err);
       }
     }
 
@@ -207,13 +295,28 @@ export const DataProvider = ({ children }) => {
   };
 
   const updateTournament = async (id, data) => {
-    setTournaments(prev => prev.map(t => t.id === id ? { ...t, ...data } : t));
+    let fullUpdatedRecord = null;
+
+    setTournaments(prev => {
+      const next = prev.map(t => {
+        if (t.id === id) {
+          fullUpdatedRecord = { ...t, ...data, id, updated_at: new Date().toISOString() };
+          return fullUpdatedRecord;
+        }
+        return t;
+      });
+      localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+      syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+      return next;
+    });
+
     logActivity('tournament_updated', `Admin updated tournament "${data.title || id}"`);
 
-    // Sync update to Supabase
+    // Sync update to Supabase using UPSERT so initial seed tournaments also get stored in Supabase
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('tournaments').update(data).eq('id', id);
+        const toSave = fullUpdatedRecord || { ...data, id, updated_at: new Date().toISOString() };
+        await supabase.from('tournaments').upsert(toSave);
       } catch (err) {
         console.warn('Error updating tournament in Supabase:', err);
       }
@@ -222,7 +325,12 @@ export const DataProvider = ({ children }) => {
 
   const deleteTournament = async (id) => {
     const tourney = tournaments.find(t => t.id === id);
-    setTournaments(prev => prev.filter(t => t.id !== id));
+    setTournaments(prev => {
+      const next = prev.filter(t => t.id !== id);
+      localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+      syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+      return next;
+    });
     setRegistrations(prev => prev.filter(r => r.tournament_id !== id));
     setMatches(prev => prev.filter(m => m.tournament_id !== id));
     logActivity('tournament_deleted', `Admin deleted/cancelled tournament "${tourney?.title || id}"`);
@@ -238,13 +346,28 @@ export const DataProvider = ({ children }) => {
   };
 
   const setTournamentStatus = async (id, newStatus) => {
-    setTournaments(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+    let fullUpdatedRecord = null;
+
+    setTournaments(prev => {
+      const next = prev.map(t => {
+        if (t.id === id) {
+          fullUpdatedRecord = { ...t, status: newStatus, updated_at: new Date().toISOString() };
+          return fullUpdatedRecord;
+        }
+        return t;
+      });
+      localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+      syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+      return next;
+    });
+
     logActivity('tournament_status_changed', `Tournament status changed to ${newStatus}`);
 
-    // Sync status change to Supabase
+    // Sync status change to Supabase using UPSERT
     if (isSupabaseConfigured()) {
       try {
-        await supabase.from('tournaments').update({ status: newStatus }).eq('id', id);
+        const toSave = fullUpdatedRecord || { id, status: newStatus, updated_at: new Date().toISOString() };
+        await supabase.from('tournaments').upsert(toSave);
       } catch (err) {
         console.warn('Error updating tournament status in Supabase:', err);
       }

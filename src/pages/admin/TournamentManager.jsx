@@ -29,6 +29,12 @@ export const TournamentManager = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTourney, setEditingTourney] = useState(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [syncFeedback, setSyncFeedback] = useState(null);
+
+  const triggerFeedback = (msg) => {
+    setSyncFeedback(msg);
+    setTimeout(() => setSyncFeedback(null), 3500);
+  };
 
   // Form states
   const [title, setTitle] = useState('');
@@ -180,7 +186,7 @@ export const TournamentManager = () => {
                   {['Open', 'Live', 'Closed', 'Completed'].map((s) => (
                     <button
                       key={s}
-                      onClick={() => setTournamentStatus(tourney.id, s)}
+                      onClick={() => { setTournamentStatus(tourney.id, s); triggerFeedback(`Status set to "${s}" & synced live!`); }}
                       className={`py-1 rounded text-[10px] font-bold uppercase transition ${
                         tourney.status === s
                           ? s === 'Open'

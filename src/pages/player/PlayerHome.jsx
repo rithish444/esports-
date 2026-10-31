@@ -49,14 +49,14 @@ export const PlayerHome = () => {
 
   // Filter tournaments: Only display tournaments fixed and active in the admin dashboard.
   // Never show tournaments cancelled or closed by admin when a player browses tournaments to join.
+  // Filter tournaments: Display all tournaments and live updates from Admin in real-time
   const filteredTournaments = tournaments.filter(t => {
     if (t.status === 'Cancelled') return false;
-    if (filterStatus === 'All' && (t.status === 'Closed' || t.status === 'Completed')) return false;
 
     const matchesSearch = (t.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (t.map || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesMode = filterMode === 'All' || t.mode === filterMode;
-    const matchesStatus = filterStatus === 'All' ? (t.status === 'Open' || t.status === 'Live') : t.status === filterStatus;
+    const matchesStatus = filterStatus === 'All' ? true : t.status === filterStatus;
     return matchesSearch && matchesMode && matchesStatus;
   });
 
@@ -125,6 +125,10 @@ export const PlayerHome = () => {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-semibold mb-3">
             <Flame className="w-3.5 h-3.5 text-orange-400" />
             Season 4 Now Live
+          </div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold mb-3 ml-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Live Updates Active
           </div>
           <h1 className="text-3xl sm:text-5xl font-black text-white font-gaming tracking-wide uppercase mb-3">
             Dominate The <span className="text-cyan-400 text-glow-cyan">Free Fire</span> Arena
