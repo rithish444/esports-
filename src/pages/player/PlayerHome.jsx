@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Trophy, 
   Coins, 
@@ -12,7 +12,9 @@ import {
   Filter, 
   AlertTriangle,
   Flame,
-  ArrowRight
+  ArrowRight,
+  RefreshCw,
+  Wifi
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
@@ -24,6 +26,10 @@ export const PlayerHome = () => {
   const { currentUser } = useAuth();
   const { 
     tournaments, 
+    tournamentsLoading,
+    tournamentsError,
+    isRealtimeConnected,
+    fetchTournamentsFromSupabase,
     registrations, 
     getUserTeam, 
     getTeamWallet, 
@@ -40,15 +46,34 @@ export const PlayerHome = () => {
   const [joinModalTourney, setJoinModalTourney] = useState(null);
   const [joinError, setJoinError] = useState(null);
   const [joinSuccess, setJoinSuccess] = useState(null);
+  const [isSubmittingJoin, setIsSubmittingJoin] = useState(false);
   const [quickTeamName, setQuickTeamName] = useState('');
   const [quickFFUid, setQuickFFUid] = useState('');
   const [quickPhone, setQuickPhone] = useState('');
 
+  // Live countdown ticker that ticks every 1 second
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const getCountdown = (startTime) => {
+    if (!startTime) return null;
+    const diff = new Date(startTime).getTime() - now;
+    if (diff <= 0) return { label: 'Started', isPast: true };
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const minutes = Math.floor((diff / (1000 * 60)) % 60);
+    const seconds = Math.floor((diff / 1000) % 60);
+    if (days > 0) return { label: `${days}d ${hours}h left`, isPast: false };
+    if (hours > 0) return { label: `${hours}h ${minutes}m left`, isPast: false };
+    return { label: `${minutes}m ${seconds}s left`, isPast: false };
+  };
+
   const userTeam = currentUser ? getUserTeam(currentUser.id) : null;
   const currentWalletBalance = userTeam ? getTeamWallet(userTeam.id) : (currentUser ? getTeamWallet(currentUser.id) : 0);
 
-  // Filter tournaments: Only display tournaments fixed and active in the admin dashboard.
-  // Never show tournaments cancelled or closed by admin when a player browses tournaments to join.
   // Filter tournaments: Display all tournaments and live updates from Admin in real-time
   const filteredTournaments = tournaments.filter(t => {
     if (t.status === 'Cancelled') return false;
@@ -69,7 +94,7 @@ export const PlayerHome = () => {
     setJoinModalTourney(tourney);
   };
 
-  const handleConfirmJoin = () => {
+  const handleConfirmJoin = async () => {
     setJoinError(null);
     setJoinSuccess(null);
 
@@ -92,8 +117,9 @@ export const PlayerHome = () => {
       }
     }
 
+    setIsSubmittingJoin(true);
     try {
-      joinTournament(
+      await joinTournament(
         joinModalTourney.id, 
         userTeam ? userTeam.id : null,
         !userTeam ? {
@@ -109,9 +135,11 @@ export const PlayerHome = () => {
         setJoinModalTourney(null);
         setJoinSuccess(null);
         navigate('/registrations');
-      }, 2200);
+      }, 2000);
     } catch (err) {
-      setJoinError(err.message);
+      setJoinError(err.message || 'Failed to submit registration.');
+    } finally {
+      setIsSubmittingJoin(false);
     }
   };
 
@@ -122,14 +150,25 @@ export const PlayerHome = () => {
       <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#111726] via-[#16213b] to-[#0f1523] border border-[#1f2b45] p-6 sm:p-10 shadow-2xl">
         <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
         <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-semibold mb-3">
-            <Flame className="w-3.5 h-3.5 text-orange-400" />
-            Season 4 Now Live
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-semibold">
+              <Flame className="w-3.5 h-3.5 text-orange-400" />
+              Season 4 Now Live
+            </div>
+            {isRealtimeConnected ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold shadow-sm">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <Wifi className="w-3 h-3 text-emerald-400" />
+                Realtime Live
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs font-semibold">
+                <RefreshCw className="w-3 h-3 text-cyan-400 animate-spin" />
+                Syncing Cloud
+              </div>
+            )}
           </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs font-semibold mb-3 ml-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            Live Updates Active
-          </div>
+
           <h1 className="text-3xl sm:text-5xl font-black text-white font-gaming tracking-wide uppercase mb-3">
             Dominate The <span className="text-cyan-400 text-glow-cyan">Free Fire</span> Arena
           </h1>
@@ -200,8 +239,82 @@ export const PlayerHome = () => {
             <option value="Closed">Closed</option>
             <option value="Completed">Completed</option>
           </select>
+
+          {/* Manual Refresh Button */}
+          <button
+            onClick={() => fetchTournamentsFromSupabase()}
+            title="Refresh tournaments from cloud"
+            className="p-2 bg-[#0d121e] hover:bg-[#162035] border border-[#1f2b45] rounded-lg text-slate-400 hover:text-cyan-400 transition"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
         </div>
       </div>
+
+      {/* ERROR STATE */}
+      {tournamentsError && tournaments.length === 0 && (
+        <div className="p-8 rounded-2xl bg-rose-950/20 border border-rose-500/30 text-center space-y-4">
+          <AlertTriangle className="w-10 h-10 text-rose-400 mx-auto" />
+          <h3 className="text-lg font-bold text-white font-gaming tracking-wide">Failed to Load Tournaments</h3>
+          <p className="text-sm text-slate-300 max-w-md mx-auto">{tournamentsError}</p>
+          <button
+            onClick={() => fetchTournamentsFromSupabase()}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-black font-bold text-xs uppercase tracking-wider inline-flex items-center gap-2 shadow-neon-cyan transition"
+          >
+            <RefreshCw className="w-4 h-4" /> Retry Now
+          </button>
+        </div>
+      )}
+
+      {/* SKELETON LOADING STATE */}
+      {tournamentsLoading && tournaments.length === 0 && !tournamentsError && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="gaming-card overflow-hidden animate-pulse">
+              <div className="h-44 bg-slate-800/60" />
+              <div className="p-4 space-y-3">
+                <div className="h-4 bg-slate-800 rounded w-3/4" />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="h-12 bg-slate-800/60 rounded-lg" />
+                  <div className="h-12 bg-slate-800/60 rounded-lg" />
+                </div>
+                <div className="h-3 bg-slate-800 rounded w-full" />
+                <div className="h-9 bg-slate-800/80 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* EMPTY STATE */}
+      {!tournamentsLoading && filteredTournaments.length === 0 && !tournamentsError && (
+        <div className="p-12 rounded-2xl bg-[#111726]/60 border border-[#1f2b45] text-center space-y-4">
+          <Trophy className="w-12 h-12 text-slate-600 mx-auto" />
+          <h3 className="text-xl font-bold text-white font-gaming tracking-wide">
+            {tournaments.length === 0 ? 'No Tournaments Right Now' : 'No Tournaments Match Your Filter'}
+          </h3>
+          <p className="text-sm text-slate-400 max-w-md mx-auto">
+            {tournaments.length === 0 
+              ? 'No tournaments have been published yet by the Admin. As soon as a tournament is announced, it will appear here instantly!' 
+              : 'Try clearing your search query or selecting "All Modes" to see available tournaments.'}
+          </p>
+          {tournaments.length > 0 ? (
+            <button
+              onClick={() => { setSearchQuery(''); setFilterMode('All'); setFilterStatus('All'); }}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition"
+            >
+              Reset Filters
+            </button>
+          ) : (
+            <button
+              onClick={() => fetchTournamentsFromSupabase()}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-black text-xs font-bold inline-flex items-center gap-2 shadow-neon-cyan transition"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Refresh Tournaments
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Tournament Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -214,6 +327,7 @@ export const PlayerHome = () => {
 
           // Check if current team already registered
           const isUserRegistered = userTeam && tourneyRegs.some(r => r.team_id === userTeam.id);
+          const countdown = getCountdown(tourney.start_time);
 
           return (
             <div
@@ -223,16 +337,28 @@ export const PlayerHome = () => {
               {/* Card Banner Header */}
               <div className="relative h-44 w-full overflow-hidden bg-slate-900">
                 <img
-                  src={tourney.banner_url}
+                  src={tourney.banner_url || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80'}
                   alt={tourney.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#111726] via-black/40 to-transparent" />
                 
-                {/* Badges on Banner */}
-                <div className="absolute top-3 left-3 flex items-center gap-2">
-                  <StatusBadge status={tourney.status} />
-                  <ModeBadge mode={tourney.mode} />
+                {/* Badges on Banner: Status, Mode & Live Countdown */}
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={tourney.status} />
+                    <ModeBadge mode={tourney.mode} />
+                  </div>
+                  {countdown && (
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 shadow-sm ${
+                      countdown.isPast 
+                        ? 'bg-rose-950/80 text-rose-300 border border-rose-500/40' 
+                        : 'bg-black/80 backdrop-blur-sm text-cyan-300 border border-cyan-500/40'
+                    }`}>
+                      <Clock className="w-3 h-3 text-cyan-400" />
+                      {countdown.label}
+                    </span>
+                  )}
                 </div>
 
                 <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
@@ -268,10 +394,12 @@ export const PlayerHome = () => {
                   </div>
                 </div>
 
-                {/* Slots Progress Bar */}
+                {/* Slots Progress Bar (Live Counter updating in Realtime) */}
                 <div>
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-slate-400">Slots:</span>
+                    <span className="text-slate-400 flex items-center gap-1">
+                      <Users className="w-3 h-3 text-cyan-400" /> Slots:
+                    </span>
                     <span className="font-semibold text-slate-200">
                       {activeRegs.length} / {tourney.max_teams} Teams ({slotsLeft} Left)
                     </span>
@@ -348,7 +476,7 @@ export const PlayerHome = () => {
           <div className="space-y-4 text-sm text-slate-300">
             <div className="relative h-48 rounded-xl overflow-hidden mb-4">
               <img
-                src={selectedTourney.banner_url}
+                src={selectedTourney.banner_url || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80'}
                 alt={selectedTourney.title}
                 className="w-full h-full object-cover"
               />
@@ -400,7 +528,7 @@ export const PlayerHome = () => {
       {/* JOIN CONFIRMATION MODAL */}
       <Modal
         isOpen={Boolean(joinModalTourney)}
-        onClose={() => setJoinModalTourney(null)}
+        onClose={() => !isSubmittingJoin && setJoinModalTourney(null)}
         title="Tournament Registration (Admin Approval Required)"
         maxWidth="max-w-md"
       >
@@ -535,22 +663,32 @@ export const PlayerHome = () => {
                 <div className="flex items-center gap-3 pt-2">
                   <button
                     type="button"
+                    disabled={isSubmittingJoin}
                     onClick={() => setJoinModalTourney(null)}
-                    className="flex-1 py-2.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition"
+                    className="flex-1 py-2.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
-                    disabled={currentWalletBalance < (joinModalTourney.entry_fee || 0)}
+                    disabled={isSubmittingJoin || currentWalletBalance < (joinModalTourney.entry_fee || 0)}
                     onClick={handleConfirmJoin}
-                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold uppercase transition ${
+                    className={`flex-1 py-2.5 rounded-lg text-xs font-bold uppercase transition flex items-center justify-center gap-2 ${
                       currentWalletBalance < (joinModalTourney.entry_fee || 0)
                         ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700/60'
                         : 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-black shadow-neon-cyan'
                     }`}
                   >
-                    {currentWalletBalance < (joinModalTourney.entry_fee || 0) ? 'Insufficient Coins to Register' : 'Submit for Approval'}
+                    {isSubmittingJoin ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : currentWalletBalance < (joinModalTourney.entry_fee || 0) ? (
+                      'Insufficient Coins to Register'
+                    ) : (
+                      'Submit for Approval'
+                    )}
                   </button>
                 </div>
               </>

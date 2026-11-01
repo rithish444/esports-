@@ -83,23 +83,7 @@ export const INITIAL_PLAYERS = [
   { id: 'p-12', team_id: 'team-03', player_name: 'Mohit Sen', ff_name: 'BLIND_Striker', ff_uid: '3495867182', is_captain: false, is_substitute: false }
 ];
 
-export const INITIAL_TOURNAMENTS = [
-  {
-    id: 'e5p0rts-0001-4000-8000-000000000001',
-    title: 'esports',
-    game: 'Free Fire',
-    mode: 'Solo',
-    map: 'Bermuda',
-    start_time: '2026-11-02T18:00:00Z',
-    entry_fee: 50,
-    prize_pool: '600',
-    max_teams: 30,
-    rules: '1. Standard Free Fire competitive solo rules apply.\n2. Room ID and password displayed 15 minutes before match.\n3. Teaming up will result in immediate disqualification.',
-    banner_url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
-    status: 'Open',
-    created_at: '2026-10-31T09:00:00Z'
-  }
-];
+export const INITIAL_TOURNAMENTS = [];
 
 export const INITIAL_WALLETS = {
   'team-01': 450,
@@ -121,7 +105,7 @@ export const INITIAL_TRANSACTIONS = [
     id: 'tx-02',
     team_id: 'team-01',
     amount: -100,
-    reason: 'Entry fee for tournament: Free Fire Champions Cup S4',
+    reason: 'Entry fee for tournament: Official Tournament',
     balance_after: 400,
     created_by: 'usr-player-01',
     created_at: '2026-10-10T14:30:00Z'
@@ -148,90 +132,16 @@ export const INITIAL_TRANSACTIONS = [
     id: 'tx-05',
     team_id: 'team-02',
     amount: -100,
-    reason: 'Entry fee for tournament: Free Fire Champions Cup S4',
+    reason: 'Entry fee for tournament: Official Tournament',
     balance_after: 200,
     created_by: 'usr-player-02',
     created_at: '2026-10-11T10:15:00Z'
   }
 ];
 
-export const INITIAL_REGISTRATIONS = [
-  {
-    id: 'reg-01',
-    tournament_id: 'tourney-01',
-    team_id: 'team-01',
-    status: 'Approved',
-    payment_status: 'Paid',
-    coins_paid: 100,
-    created_at: '2026-10-10T14:30:00Z'
-  },
-  {
-    id: 'reg-02',
-    tournament_id: 'tourney-01',
-    team_id: 'team-02',
-    status: 'Pending',
-    payment_status: 'Paid',
-    coins_paid: 100,
-    created_at: '2026-10-11T10:15:00Z'
-  },
-  {
-    id: 'reg-03',
-    tournament_id: 'tourney-02',
-    team_id: 'team-01',
-    status: 'Approved',
-    payment_status: 'Paid',
-    coins_paid: 50,
-    created_at: '2026-10-12T09:00:00Z'
-  },
-  {
-    id: 'reg-04',
-    tournament_id: 'tourney-03',
-    team_id: 'team-01',
-    status: 'Approved',
-    payment_status: 'Paid',
-    coins_paid: 150,
-    created_at: '2026-10-02T15:00:00Z'
-  },
-  {
-    id: 'reg-05',
-    tournament_id: 'tourney-03',
-    team_id: 'team-02',
-    status: 'Approved',
-    payment_status: 'Paid',
-    coins_paid: 150,
-    created_at: '2026-10-02T16:00:00Z'
-  }
-];
+export const INITIAL_REGISTRATIONS = [];
 
-export const INITIAL_MATCHES = [
-  {
-    id: 'match-01',
-    tournament_id: 'tourney-02',
-    round: 'Round 1 - Bermuda Solo Clash',
-    start_time: '2026-10-13T21:00:00Z',
-    room_id: '8849102',
-    room_password: 'FF99',
-    created_at: '2026-10-12T10:00:00Z'
-  },
-  {
-    id: 'match-02',
-    tournament_id: 'tourney-01',
-    round: 'Quarter Finals - Match A',
-    start_time: '2026-10-18T19:00:00Z',
-    room_id: '4938102',
-    room_password: 'ARENA',
-    created_at: '2026-10-10T12:00:00Z'
-  },
-  {
-    id: 'match-03',
-    tournament_id: 'tourney-03',
-    round: 'Grand Finale - Round 1',
-    start_time: '2026-10-08T18:00:00Z',
-    room_id: '1209384',
-    room_password: 'CHAMP',
-    created_at: '2026-10-05T10:00:00Z'
-  }
-];
+export const INITIAL_MATCHES = [];
 
 export const INITIAL_RESULTS = [
   {
@@ -261,7 +171,7 @@ export const INITIAL_MESSAGES = [
     sender_id: 'usr-admin-01',
     sender_name: 'Apex Admin',
     sender_role: 'admin',
-    body: '🏆 Welcome to Esports Arena Season 4! Registrations are now OPEN for Free Fire Champions Cup. Make sure your Free Fire UIDs are entered correctly!',
+    body: '🏆 Welcome to Esports Arena Season 4! Registrations are now OPEN for Official Tournaments. Make sure your Free Fire UIDs are entered correctly!',
     is_pinned: true,
     reactions: {
       '🔥': [{ userId: 'usr-player-01', userName: 'Rahul Sharma' }, { userId: 'usr-player-02', userName: 'Vikram Singh' }],
@@ -294,7 +204,7 @@ export const INITIAL_MESSAGES = [
     sender_id: 'usr-player-01',
     sender_name: 'Rahul Sharma (Team Hydra)',
     sender_role: 'player',
-    body: 'Hi Admin, we registered for Champions Cup. Can we swap our substitute before tomorrow?',
+    body: 'Hi Admin, we registered for the tournament. Can we swap our substitute before tomorrow?',
     is_pinned: false,
     created_at: '2026-10-12T14:00:00Z'
   },
@@ -328,7 +238,7 @@ export const INITIAL_NOTIFICATIONS = [
     id: 'notif-01',
     user_id: 'usr-player-01',
     title: 'Registration Approved!',
-    message: 'Your team "Team Hydra" has been approved for Free Fire Champions Cup S4.',
+    message: 'Your team "Team Hydra" has been approved for Official Tournament.',
     type: 'approval',
     is_read: false,
     created_at: '2026-10-12T11:00:00Z'
@@ -357,7 +267,7 @@ export const INITIAL_ACTIVITY = [
   {
     id: 'act-01',
     action: 'registration_approved',
-    description: 'Admin approved Team Hydra for Free Fire Champions Cup S4',
+    description: 'Admin approved Team Hydra for Official Tournament',
     actor_id: 'usr-admin-01',
     created_at: '2026-10-12T11:00:00Z'
   },
@@ -371,14 +281,14 @@ export const INITIAL_ACTIVITY = [
   {
     id: 'act-03',
     action: 'registration_created',
-    description: 'Total Gaming Elite joined Free Fire Champions Cup S4 (100 coins deducted)',
+    description: 'Total Gaming Elite joined Official Tournament (100 coins deducted)',
     actor_id: 'usr-player-02',
     created_at: '2026-10-11T10:15:00Z'
   },
   {
     id: 'act-04',
     action: 'tournament_created',
-    description: 'Admin created tournament "Bermuda Clash Solo Showdown"',
+    description: 'Admin created tournament "Official Tournament"',
     actor_id: 'usr-admin-01',
     created_at: '2026-10-11T12:00:00Z'
   }

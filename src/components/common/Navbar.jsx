@@ -18,7 +18,7 @@ import { Link, useNavigate } from 'react-router-dom';
 
 export const Navbar = () => {
   const { currentUser, isAdmin, logout } = useAuth();
-  const { getUserTeam, getTeamWallet, notifications, markNotificationRead, markAllNotificationsRead } = useData();
+  const { getUserTeam, getTeamWallet, notifications, markNotificationRead, markAllNotificationsRead, isRealtimeConnected } = useData();
   const navigate = useNavigate();
 
   const [showNotifs, setShowNotifs] = useState(false);
@@ -73,6 +73,18 @@ export const Navbar = () => {
 
         {/* Right: Controls (Coins, Notifs, User Profile) */}
         <div className="flex items-center gap-2 sm:gap-4">
+          {/* Live Realtime Status Pill */}
+          <div 
+            title={isRealtimeConnected ? "Supabase Realtime Live: Connected" : "Connecting to Supabase Realtime..."}
+            className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border transition ${
+              isRealtimeConnected 
+                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-400' 
+                : 'bg-slate-900 border-slate-700 text-slate-400'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${isRealtimeConnected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+            <span>{isRealtimeConnected ? 'Live' : 'Syncing'}</span>
+          </div>
           
           {/* Player Coin Balance */}
           {!isAdmin && (

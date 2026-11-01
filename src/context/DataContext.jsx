@@ -25,6 +25,18 @@ import {
 
 const DataContext = createContext();
 
+// Cryptographically secure UUID generator compatible with PostgreSQL uuid type
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 const LOCAL_STORAGE_PREFIX = 'esports_v2_';
 
 // Cross-tab broadcast channel for instantaneous zero-latency updates between tabs/windows
@@ -44,55 +56,110 @@ export const DataProvider = ({ children }) => {
     return fallback;
   };
 
-  const [tournaments, setTournaments] = useState(() => loadState('tournaments', INITIAL_TOURNAMENTS));
+  // Clear any legacy mock tournaments from localStorage on boot
+  try {
+    const rawSaved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'tournaments');
+    if (rawSaved && (rawSaved.includes('Champions Cup') || rawSaved.includes('Solo Showdown') || rawSaved.includes('e5p0rts-0001') || rawSaved.includes('tourney-01'))) {
+      localStorage.removeItem(LOCAL_STORAGE_PREFIX + 'tournaments');
+    }
+  } catch (e) {}
 
-  // Sync tournaments from Supabase so any phone/device sees the exact tournaments fixed by Admin
+  // Pure Supabase tournaments state (never falls back to fake/mock tournaments)
+  const [tournaments, setTournaments] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_PREFIX + 'tournaments');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && !parsed.some(t => t.id === 'tourney-01' || t.title === 'esports')) {
+          return parsed;
+        }
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const [tournamentsLoading, setTournamentsLoading] = useState(true);
+  const [tournamentsError, setTournamentsError] = useState(null);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+
+  // Sync tournaments from Supabase cloud database
   const fetchTournamentsFromSupabase = async (isBackground = false) => {
-    if (!isSupabaseConfigured()) return;
+    if (!isSupabaseConfigured()) {
+      if (!isBackground) {
+        setTournamentsLoading(false);
+        setTournamentsError('Supabase is not configured. Please check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment.');
+      }
+      return;
+    }
+
+    if (!isBackground) setTournamentsLoading(true);
+    setTournamentsError(null);
+
     try {
       const { data, error } = await supabase
         .from('tournaments')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!error && Array.isArray(data)) {
-        if (data.length > 0) {
-          setTournaments(prev => {
-            const prevStr = JSON.stringify(prev);
-            const nextStr = JSON.stringify(data);
-            if (prevStr === nextStr) return prev;
-            localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', nextStr);
-            return data;
-          });
-        } else if (isAdmin && !isBackground) {
-          // If Supabase table is empty, auto-seed with current tournaments so cloud database is populated!
-          const currentLocal = loadState('tournaments', INITIAL_TOURNAMENTS);
-          if (Array.isArray(currentLocal) && currentLocal.length > 0) {
-            try {
-              await supabase.from('tournaments').upsert(currentLocal);
-            } catch (seedErr) {
-              console.warn('Initial seed error:', seedErr);
-            }
-          }
+      if (error) {
+        console.error('Supabase tournaments fetch error:', error);
+        if (!isBackground) {
+          setTournamentsError(error.message || 'Failed to load tournaments from Supabase.');
         }
+      } else if (Array.isArray(data)) {
+        setTournaments(data);
+        setTournamentsError(null);
+        try {
+          localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(data));
+        } catch (e) {}
       }
     } catch (err) {
-      if (!isBackground) console.warn('Error fetching tournaments from Supabase:', err);
+      console.error('Supabase network error:', err);
+      if (!isBackground) {
+        setTournamentsError(err.message || 'Network error while loading tournaments.');
+      }
+    } finally {
+      if (!isBackground) setTournamentsLoading(false);
+    }
+  };
+
+  // Sync registrations from Supabase cloud database so slot counters update live
+  const fetchRegistrationsFromSupabase = async () => {
+    if (!isSupabaseConfigured()) return;
+    try {
+      const { data, error } = await supabase
+        .from('registrations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data)) {
+        setRegistrations(data);
+        try {
+          localStorage.setItem(LOCAL_STORAGE_PREFIX + 'registrations', JSON.stringify(data));
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.warn('Error fetching registrations:', err);
     }
   };
 
   useEffect(() => {
     // 1. Initial fetch
     fetchTournamentsFromSupabase();
+    fetchRegistrationsFromSupabase();
 
     // 2. Storage event listener (other tabs in same browser)
     const handleStorage = (e) => {
       if (e.key === LOCAL_STORAGE_PREFIX + 'tournaments' && e.newValue) {
         try {
           const parsed = JSON.parse(e.newValue);
-          if (Array.isArray(parsed)) {
-            setTournaments(parsed);
-          }
+          if (Array.isArray(parsed)) setTournaments(parsed);
+        } catch (err) {}
+      }
+      if (e.key === LOCAL_STORAGE_PREFIX + 'registrations' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) setRegistrations(parsed);
         } catch (err) {}
       }
     };
@@ -107,26 +174,37 @@ export const DataProvider = ({ children }) => {
       };
     }
 
-    // 4. Focus & visibility change listener (when user unlocks phone or switches back to tab)
-    const handleFocus = () => fetchTournamentsFromSupabase(true);
+    // 4. Focus & visibility change listener (when phone unlocks or switches back to tab)
+    const handleFocus = () => {
+      fetchTournamentsFromSupabase(true);
+      fetchRegistrationsFromSupabase();
+    };
     window.addEventListener('focus', handleFocus);
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') handleFocus();
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
+    // 5. Network reconnect listener (phone re-establishes internet/signal)
+    const handleOnline = () => {
+      fetchTournamentsFromSupabase(true);
+      fetchRegistrationsFromSupabase();
+    };
+    window.addEventListener('online', handleOnline);
+
     if (!isSupabaseConfigured()) {
       return () => {
         window.removeEventListener('storage', handleStorage);
         window.removeEventListener('focus', handleFocus);
         document.removeEventListener('visibilitychange', handleVisibility);
+        window.removeEventListener('online', handleOnline);
       };
     }
 
-    // 5. Supabase Realtime WebSocket listener
-    const channelName = 'tournaments-live-sync-' + Math.random().toString(36).slice(2, 8);
-    const channel = supabase
-      .channel(channelName)
+    // 6. Supabase Realtime WebSocket listener on tournaments
+    const tourneyChannelName = 'tournaments-live-sync-' + Math.random().toString(36).slice(2, 8);
+    const tourneyChannel = supabase
+      .channel(tourneyChannelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tournaments' },
@@ -135,22 +213,60 @@ export const DataProvider = ({ children }) => {
             setTournaments(prev => {
               if (prev.some(t => t.id === payload.new.id)) return prev;
               const next = [payload.new, ...prev];
-              localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+              try { localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next)); } catch (e) {}
               syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
               return next;
             });
           } else if (payload.eventType === 'UPDATE') {
             setTournaments(prev => {
               const next = prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t);
-              localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+              try { localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next)); } catch (e) {}
               syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
               return next;
             });
           } else if (payload.eventType === 'DELETE') {
             setTournaments(prev => {
               const next = prev.filter(t => t.id !== payload.old.id);
-              localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next));
+              try { localStorage.setItem(LOCAL_STORAGE_PREFIX + 'tournaments', JSON.stringify(next)); } catch (e) {}
               syncChannel?.postMessage({ type: 'SYNC_TOURNAMENTS', data: next });
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setIsRealtimeConnected(true);
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          setIsRealtimeConnected(false);
+        }
+      });
+
+    // 7. Supabase Realtime WebSocket listener on registrations (live slots sync)
+    const regChannelName = 'registrations-live-sync-' + Math.random().toString(36).slice(2, 8);
+    const regChannel = supabase
+      .channel(regChannelName)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'registrations' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setRegistrations(prev => {
+              if (prev.some(r => r.id === payload.new.id)) return prev;
+              const next = [payload.new, ...prev];
+              try { localStorage.setItem(LOCAL_STORAGE_PREFIX + 'registrations', JSON.stringify(next)); } catch (e) {}
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setRegistrations(prev => {
+              const next = prev.map(r => r.id === payload.new.id ? { ...r, ...payload.new } : r);
+              try { localStorage.setItem(LOCAL_STORAGE_PREFIX + 'registrations', JSON.stringify(next)); } catch (e) {}
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            setRegistrations(prev => {
+              const next = prev.filter(r => r.id !== payload.old.id);
+              try { localStorage.setItem(LOCAL_STORAGE_PREFIX + 'registrations', JSON.stringify(next)); } catch (e) {}
               return next;
             });
           }
@@ -158,19 +274,23 @@ export const DataProvider = ({ children }) => {
       )
       .subscribe();
 
-    // 6. Fast live polling every 2.5 seconds - guarantees rapid real-time sync across all live devices
+    // 8. Fast live polling every 2.5 seconds fallback
     const pollInterval = setInterval(() => {
       fetchTournamentsFromSupabase(true);
+      fetchRegistrationsFromSupabase();
     }, 2500);
 
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', handleOnline);
       clearInterval(pollInterval);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(tourneyChannel);
+      supabase.removeChannel(regChannel);
+      setIsRealtimeConnected(false);
     };
-  }, [isAdmin]);
+  }, []);
 
   const [teams, setTeams] = useState(() => loadState('teams', INITIAL_TEAMS));
   const [players, setPlayers] = useState(() => loadState('players', INITIAL_PLAYERS));
@@ -518,7 +638,7 @@ export const DataProvider = ({ children }) => {
   // -------------------------------------------------------------
   // TOURNAMENT JOIN (EASY REGISTRATION & PENDING ADMIN APPROVAL)
   // -------------------------------------------------------------
-  const joinTournament = (tournamentId, teamId, quickTeamData = null) => {
+  const joinTournament = async (tournamentId, teamId, quickTeamData = null) => {
     const tourney = tournaments.find(t => t.id === tournamentId);
     if (!tourney) throw new Error('Tournament not found.');
 
@@ -528,12 +648,14 @@ export const DataProvider = ({ children }) => {
 
     let actualTeamId = teamId;
 
-    // If player does not have a team yet, auto-create team seamlessly from quick inputs
+    // If player does not have a team yet, auto-create team seamlessly with valid UUID
     if (!actualTeamId && quickTeamData) {
-      const generatedTeamId = 'team-' + Date.now();
+      const generatedTeamId = generateUUID();
+      const generatedPlayerId = generateUUID();
+
       const generatedTeam = {
         id: generatedTeamId,
-        owner_id: currentUser?.id || 'guest',
+        owner_id: currentUser?.id || '00000000-0000-0000-0000-000000000000',
         team_name: quickTeamData.teamName.trim(),
         phone: quickTeamData.phone?.trim() || '+919876543210',
         chat_unlocked: true,
@@ -541,20 +663,33 @@ export const DataProvider = ({ children }) => {
       };
 
       const generatedPlayer = {
-        id: 'p-' + Date.now(),
+        id: generatedPlayerId,
         team_id: generatedTeamId,
         player_name: currentUser?.name || quickTeamData.captainName || 'Player 1',
         ff_name: quickTeamData.ffName || quickTeamData.teamName,
         ff_uid: String(quickTeamData.ffUid || '123456789').trim(),
         is_captain: true,
-        is_substitute: false
+        is_substitute: false,
+        created_at: new Date().toISOString()
       };
 
       setTeams(prev => [generatedTeam, ...prev]);
       setPlayers(prev => [generatedPlayer, ...prev]);
-      // Link existing user coins (200 coin bonus was given on account creation, NOT tournament registration)
+
       const existingCoins = (currentUser?.id && wallets[currentUser.id] !== undefined) ? wallets[currentUser.id] : 0;
       setWallets(prev => ({ ...prev, [generatedTeamId]: existingCoins }));
+
+      // Persist new team & player to Supabase if connected
+      if (isSupabaseConfigured() && currentUser?.id) {
+        try {
+          await supabase.from('teams').upsert(generatedTeam);
+          await supabase.from('team_players').upsert(generatedPlayer);
+          await supabase.from('wallets').upsert({ team_id: generatedTeamId, balance: existingCoins });
+        } catch (teamCloudErr) {
+          console.warn('Team cloud sync error:', teamCloudErr);
+        }
+      }
+
       actualTeamId = generatedTeamId;
     }
 
@@ -562,13 +697,76 @@ export const DataProvider = ({ children }) => {
       throw new Error('Please enter your Team Name and Free Fire UID to register.');
     }
 
+    // --------------------------------------------------------------------------
+    // PHASE 3: EXECUTE TRANSACTION ATOMICALLY VIA join_tournament POSTGRES RPC
+    // --------------------------------------------------------------------------
+    if (isSupabaseConfigured() && currentUser?.id) {
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('join_tournament', {
+        p_tournament_id: tournamentId,
+        p_team_id: actualTeamId
+      });
+
+      if (rpcError) {
+        console.error('join_tournament RPC failed:', rpcError);
+        const errLower = (rpcError.message || '').toLowerCase();
+        if (errLower.includes('insufficient_coins') || errLower.includes('insufficient coins')) {
+          throw new Error(`Insufficient Coins! This tournament requires ${tourney.entry_fee} Coins to register. Please top up your wallet.`);
+        } else if (errLower.includes('already_joined') || errLower.includes('already registered')) {
+          throw new Error('Your team is already registered for this tournament.');
+        } else if (errLower.includes('tournament_full') || errLower.includes('full')) {
+          throw new Error('Tournament is completely full! All slots have been taken.');
+        } else if (errLower.includes('not_open')) {
+          throw new Error(`Tournament registrations are currently ${tourney.status}.`);
+        } else if (errLower.includes('auth_required')) {
+          throw new Error('Authentication required. Please sign in to join.');
+        }
+        throw new Error(rpcError.message || 'Database error occurred while joining tournament.');
+      }
+
+      if (!rpcResult?.success) {
+        const code = rpcResult?.code;
+        const msg = rpcResult?.message || 'Could not join tournament.';
+        if (code === 'INSUFFICIENT_COINS') {
+          throw new Error(msg);
+        } else if (code === 'ALREADY_JOINED') {
+          throw new Error('Your team is already registered for this tournament.');
+        } else if (code === 'TOURNAMENT_FULL') {
+          throw new Error('Tournament is completely full! All slots have been taken.');
+        }
+        throw new Error(msg);
+      }
+
+      // Update local wallet balance with new balance returned by atomic transaction
+      if (rpcResult.new_balance !== undefined) {
+        setWallets(prev => ({
+          ...prev,
+          [actualTeamId]: rpcResult.new_balance,
+          ...(currentUser?.id ? { [currentUser.id]: rpcResult.new_balance } : {})
+        }));
+      }
+
+      // Refresh cloud data
+      fetchTournamentsFromSupabase(true);
+      fetchRegistrationsFromSupabase();
+
+      logActivity('registration_created', `Successfully joined "${tourney.title}". Pending Admin Permission.`);
+      sendNotification(
+        currentUser?.id,
+        'Registration Submitted',
+        `Your registration for "${tourney.title}" has been submitted and is awaiting Admin review!`,
+        'success'
+      );
+
+      return { success: true, newBalance: rpcResult.new_balance, message: rpcResult.message };
+    }
+
+    // Local simulation fallback for offline testing
     const team = teams.find(t => t.id === actualTeamId) || {
       id: actualTeamId,
       team_name: quickTeamData?.teamName || 'My Team',
       owner_id: currentUser?.id
     };
 
-    // Check if already registered
     const alreadyRegistered = registrations.some(
       r => r.tournament_id === tournamentId && r.team_id === actualTeamId
     );
@@ -576,7 +774,6 @@ export const DataProvider = ({ children }) => {
       throw new Error('Your team is already registered for this tournament.');
     }
 
-    // Check available slots
     const activeRegCount = registrations.filter(
       r => r.tournament_id === tournamentId && ['Pending', 'Approved'].includes(r.status)
     ).length;
@@ -586,13 +783,11 @@ export const DataProvider = ({ children }) => {
       throw new Error('Tournament is completely full!');
     }
 
-    // Check coin balance: Players can ONLY register using coins.
     const currentBalance = getTeamWallet(actualTeamId);
     const fee = Number(tourney.entry_fee) || 0;
 
-    // RULE 2: If they do not have enough coins, they CANNOT register for the tournament!
     if (fee > 0 && currentBalance < fee) {
-      throw new Error(`Insufficient Coins! This tournament requires ${fee} Coins to register, but you currently have only ${currentBalance} Coins. You cannot register for the game without coins.`);
+      throw new Error(`Insufficient Coins! This tournament requires ${fee} Coins to register, but you currently have only ${currentBalance} Coins.`);
     }
 
     const newBalance = fee > 0 ? currentBalance - fee : currentBalance;
@@ -614,9 +809,8 @@ export const DataProvider = ({ children }) => {
       }, ...prev]);
     }
 
-    // 3. Create registration with status 'Pending' (REQUIRES ADMIN PERMISSION TO PLAY)
     const newReg = {
-      id: 'reg-' + Date.now(),
+      id: generateUUID(),
       tournament_id: tournamentId,
       team_id: actualTeamId,
       status: 'Pending',
@@ -626,29 +820,17 @@ export const DataProvider = ({ children }) => {
     };
     setRegistrations(prev => [newReg, ...prev]);
 
-    // 4. Unlock team chat
-    setTeams(prev => prev.map(t => t.id === actualTeamId ? { ...t, chat_unlocked: true } : t));
-
-    // 5. Check if max slots reached now -> auto close
-    if (activeRegCount + 1 >= tourney.max_teams) {
-      setTournaments(prev => prev.map(t => t.id === tournamentId ? { ...t, status: 'Closed' } : t));
-    }
-
-    // 6. Log activity & notifications
     logActivity('registration_created', `${team.team_name} requested entry for "${tourney.title}". Pending Admin Permission.`);
     sendNotification(
       currentUser?.id,
       'Registration Submitted (Pending Approval)',
-      `Your registration for "${tourney.title}" has been submitted and is awaiting Admin permission. You will be able to play once approved!`,
+      `Your registration for "${tourney.title}" has been submitted and is awaiting Admin permission.`,
       'info'
     );
 
     return { success: true, newBalance };
   };
 
-  // -------------------------------------------------------------
-  // REGISTRATION APPROVAL & REFUND
-  // -------------------------------------------------------------
   const approveRegistration = (regId) => {
     const reg = registrations.find(r => r.id === regId);
     if (!reg) return;
